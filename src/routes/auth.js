@@ -1,10 +1,8 @@
-const mongoose = require('mongoose');
+const express = require("express")
+
+const authRoutes = express.Router();
 
 
-const connectDB = async () =>{
-    try {
-        await mongoose.connect
-    }catch(error){
 
-    }
-}
+
+module.exports = authRoutes;
