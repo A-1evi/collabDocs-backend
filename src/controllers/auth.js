@@ -1,8 +1,7 @@
 const express = require("express");
 const { validateSignupData, validateLoginData } = require("../utils/validate");
 const User = require("../models/userModel");
-const argon2 = require("argon2");
-const jwt = require("jsonwebtoken");
+
 
 const signupController = async (req, res) => {
   // Validate request data
@@ -31,15 +30,8 @@ const signupController = async (req, res) => {
     });
 
     await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
     res.status(201).json({
       message: "User created successfully",
-      token,
       user: {
         id: user._id,
         name: user.name,
@@ -77,17 +69,18 @@ const loginController = async (req, res) => {
     const validPassword = await user.comparePassword(password);
     if (!validPassword) {
       return res.status(401).json({ message: "Invalid email or password" });
+    } else {
+      // using methods function of mongoose to set Token
+      const token = await user.getJWT();
+      //setting cookies
+      res.cookie("token", token, {
+        expires: new Date(Date.now() + 8 * 3600000),
+      }); // coookie expires in 8 hrs;
     }
-
-    // Generate JWT token
-    // const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    //   expiresIn: "1h",
-    // });
 
     // Send response
     res.status(200).json({
       message: "Logged in successfully",
-      token,
       user: {
         id: user._id,
         name: user.name,
