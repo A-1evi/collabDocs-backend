@@ -1,7 +1,6 @@
 const express = require("express");
 const { validateSignupData, validateLoginData } = require("../utils/validate");
-const User = require("../models/userModel");
-
+const User = require("../models/user");
 
 const signupController = async (req, res) => {
   // Validate request data
@@ -21,8 +20,6 @@ const signupController = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
-
-    // Create new user (password will be hashed by the pre-save middleware)
     const user = new User({
       name,
       email,
@@ -59,8 +56,8 @@ const loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Find user by email and explicitly select password
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
@@ -92,6 +89,50 @@ const loginController = async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const google = async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.body.email });
+    if (user) {
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const { password: hashedPassword, ...rest } = user._doc;
+      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+      res
+        .cookie("access_token", token, {
+          httpOnly: true,
+          expires: expiryDate,
+        })
+        .status(200)
+        .json(rest);
+    } else {
+      const generatedPassword =
+        Math.random().toString(36).slice(-8) +
+        Math.random().toString(36).slice(-8);
+      const hashedPassword = bcryptjs.hashSync(generatedPassword, 10);
+      const newUser = new User({
+        username:
+          req.body.name.split(" ").join("").toLowerCase() +
+          Math.random().toString(36).slice(-8),
+        email: req.body.email,
+        password: hashedPassword,
+        profilePicture: req.body.photo,
+      });
+      await newUser.save();
+      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
+      const { password: hashedPassword2, ...rest } = newUser._doc;
+      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+      res
+        .cookie("access_token", token, {
+          httpOnly: true,
+          expires: expiryDate,
+        })
+        .status(200)
+        .json(rest);
+    }
+  } catch (error) {
+    console.log("error:", error);
   }
 };
 
